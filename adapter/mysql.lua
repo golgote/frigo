@@ -11,8 +11,6 @@ module("frigo.adapter.mysql", package.seeall)
 
 -- Meta information
 _COPYRIGHT = "Copyright (C) 2008 Bertrand Mansion"
-_DESCRIPTION = "Frigo is a simple ORM working on top of LuaSQL"
-_VERSION = "Frigo Adapter MySQL 0.0.1"
 
 driver = "mysql"
 
@@ -46,21 +44,6 @@ local mappings = {
   datetime	= 'datetime',
   timestamp	= 'datetime'
 }
-
-function connect(self, database, username, password, ...)
-  if not self.conn then
-    local luasql = require("luasql.mysql")
-    local env, err = luasql.mysql()
-    if not env then
-      error(err, 2)
-    end
-    self.conn, err = env:connect(database, username, password, ...)
-    if not self.conn then
-      error(err, 2)
-    end
-  end
-  return self
-end
 
 function identifier(self, str)
   return "`"..str:gsub("`", "``").."`"
@@ -129,16 +112,15 @@ function limitQuery(self, q, from, count, ...)
   return q
 end
 
---[[
-function nextid(seqname, ondemand)
-  
+function startTransaction(self)
+  self.conn:execute("START TRANSACTION")
+  return {
+    conn = self.conn,
+    commit = function(self)
+      self.conn:execute("COMMIT")
+    end,
+    rollback = function(self)
+      self.conn:execute("ROLLBACK")
+    end
+  }
 end
-
-function createSequence(seqname)
-  
-end
-
-function dropSequence(seqname)
-  
-end
-]]

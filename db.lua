@@ -2,20 +2,32 @@
 module('frigo.db', package.seeall)
 
 _COPYRIGHT = "Copyright (C) 2008 Bertrand Mansion"
-_DESCRIPTION = "Frigo module"
+_DESCRIPTION = "Frigo DB is a simple wrapper for common LuaSQL manipulations."
 _VERSION = "0.0.1"
 
 prepared_queries = {}
 last_query = ""
 
-function connect(self, driver, database, username, password, ...)
+function connect(driver, database, username, password, ...)
   assert(driver, "driver required to make luasql connection")
+
+  local connection = {}
+  local luasql = require("luasql.mysql")
+  local env, err = luasql[driver]()
+  if not env then error(err) end
+
+  local conn, err = env:connect(database, username, password, ...)
+  if not conn then error(err) end
+
+  connection.conn = conn
   local adapter = require("frigo.adapter." .. driver)
-  local c = adapter:connect(database, username, password, ...)
-  setmetatable(c, self)
-  self.__index = self
-  self.__tostring = self.tostring
-  return c
+  for k, v in pairs(adapter) do
+    if k ~= "_M" then
+      connection[k] = v
+    end
+  end
+  setmetatable(connection, {__index = _M})
+  return connection
 end
 
 function close(self)
@@ -24,14 +36,6 @@ function close(self)
 	self.last_query = ""
 	self:freePrepared()
 	setmetatable(self, nil)
-end
-
-function tostring(self)
-  local info = string.lower(self._NAME) .. ": (driver="..self.driver..")"
-  if self.conn then
-    info = info .. " [connected]"
-  end
-  return info
 end
 
 function identifier(self, str)
@@ -247,40 +251,4 @@ function getAll(self, q, mode, ...)
 	end
 	cursor:close()
   return results
-end
-
-function setautocommit(self, onoff)
-  self.conn:setautocommit(onoff)
-end
-
-function commit(self)
-  self.conn:commit()
-end
-
-function rollback(self)
-  self.conn:rollback()
-end
-
-function getSequenceName(sqn)
-
-end
-
-function nextid(seqname, ondemand)
-
-end
-
-function createSequence(seqname)
-  
-end
-
-function dropSequence(seqname)
-  
-end
-
-function tablelist(self)
-  error("not implemented")
-end
-
-function tableinfo(self, tablename)
-  error("not implemented")
 end
