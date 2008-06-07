@@ -1,3 +1,9 @@
+-------------------------------------------------------------------------------
+-- Frigo is a simple ORM working on top of LuaSQL.
+--
+-- @author Bertrand Mansion (bmansion@mamasam.com)
+-- @copyright 2008 Bertrand Mansion
+-------------------------------------------------------------------------------
 
 module('frigo.db', package.seeall)
 
@@ -251,4 +257,16 @@ function getAll(self, q, mode, ...)
 	end
 	cursor:close()
   return results
+end
+
+function create(self, tablename, values)
+  assert(self:tableExists(tablename), "table " .. tablename .. " not found")
+  local cl = require"frigo.object"
+  return cl:new(self, tablename, values)
+end
+
+function tableExists(self, tablename)
+  local list = self:tablelist()
+  if list[tablename] then return true end
+  return false
 end

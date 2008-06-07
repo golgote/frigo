@@ -2,9 +2,7 @@
 -- Frigo is a simple ORM working on top of LuaSQL.
 --
 -- @author Bertrand Mansion (bmansion@mamasam.com)
---
 -- @copyright 2008 Bertrand Mansion
--- @release $Id: $
 -------------------------------------------------------------------------------
 
 module("frigo.adapter.mysql", package.seeall)
@@ -54,19 +52,24 @@ function escape(self, str)
 end
 
 function tablelist(self)
-  local tables = {}
+  if self.listcache then
+    return self.listcache
+  end
+  self.listcache = {}
   local cur = self.conn:execute"SHOW TABLES"
   local row = cur:fetch({})
   while row do
-    -- reusing the table of results
-    table.insert(tables, row[1])
+    self.listcache[row[1]] = true
     row = cur:fetch(row)
   end
   cur:close()
-  return tables
+  return self.listcache
 end
 
 function tableinfo(self, tablename)
+  if self.infocache then
+    return self.infocache
+  end
 	local cols = {}
 	local pk = {}
   local autoinc = false
@@ -95,7 +98,8 @@ function tableinfo(self, tablename)
     row = cur:fetch(row, "a")
   end
   cur:close()
-  return {cols = cols, pk = pk, autoinc = autoinc}
+  self.infocache = {cols = cols, pk = pk, autoinc = autoinc}
+  return self.infocache
 end
 
 function limitQuery(self, q, from, count, ...)

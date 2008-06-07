@@ -1,0 +1,9 @@
+Frigo
+=====
+
+Frigo is a simple ORM for the Lua programming language 
+built on top of LuaSQL.
+It is composed of a database wrapper which provides a 
+few functions to make it easier to use the database, as
+well as adapters to various database vendors.
+It also provides a simple ORM layer.
