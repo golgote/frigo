@@ -67,8 +67,8 @@ function tablelist(self)
 end
 
 function tableinfo(self, tablename)
-  if self.infocache then
-    return self.infocache
+  if self.infocache[tablename] then 
+    return self.infocache[tablename]
   end
 	local cols = {}
 	local pk = {}
@@ -91,6 +91,7 @@ function tableinfo(self, tablename)
     field.length = length ~= "" and tonumber(length) or nil
     field.precision = precision ~= "" and tonumber(precision) or nil
     field.default = row.Default
+    field.tablename = tablename
     if row.Extra == "auto_increment" and row.Key == "PRI" then
       autoinc = true
     end
@@ -98,8 +99,8 @@ function tableinfo(self, tablename)
     row = cur:fetch(row, "a")
   end
   cur:close()
-  self.infocache = {cols = cols, pk = pk, autoinc = autoinc}
-  return self.infocache
+  self.infocache[tablename] = {cols = cols, pk = pk, autoinc = autoinc}
+  return self.infocache[tablename]
 end
 
 function limitQuery(self, q, from, count, ...)

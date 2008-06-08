@@ -11,13 +11,14 @@ _COPYRIGHT = "Copyright (C) 2008 Bertrand Mansion"
 _DESCRIPTION = "Frigo DB is a simple wrapper for common LuaSQL manipulations."
 _VERSION = "0.0.1"
 
-prepared_queries = {}
-last_query = ""
-
 function connect(driver, database, username, password, ...)
   assert(driver, "driver required to make luasql connection")
 
-  local connection = {}
+  local connection = {
+    prepared_queries = {},
+    last_query = "",
+    infocache = {}
+  }
   local luasql = require("luasql.mysql")
   local env, err = luasql[driver]()
   if not env then error(err) end
