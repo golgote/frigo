@@ -260,14 +260,23 @@ function getAll(self, q, mode, ...)
   return results
 end
 
-function create(self, tablename, values)
+function object(self, o)
+  local tablename = o.tablename
   assert(self:tableExists(tablename), "table " .. tablename .. " not found")
-  local cl = require"frigo.object"
-  return cl:new(self, tablename, values)
+  local class = require"frigo.object"
+  return class:new(self, o)
 end
 
 function tableExists(self, tablename)
   local list = self:tablelist()
   if list[tablename] then return true end
   return false
+end
+
+function fetch(self, query, values)
+  
+end
+
+function fetchAssoc(self, query, values)
+    
 end

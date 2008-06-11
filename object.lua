@@ -12,42 +12,98 @@ _COPYRIGHT = "Copyright (C) 2008 Bertrand Mansion"
 _DESCRIPTION = "Frigo is a simple ORM working on top of LuaSQL"
 _VERSION = "0.0.1"
 
-function set(self, colname, value)
+function setvalue(self, colname, value)
+  if not self._values then
+    self._values = {}
+  end
   local col = self:colinfo(colname)
   if col then
-    if self[colname] then
-      if type(self[colname]) == "function" then
-        -- todo : call the function with the arguments
-      else
-        self[colname] = self.cast(col.data_type, value)
-      end
-    else
-        self[colname] = self.cast(col.data_type, value)
-    end
+    self._values[colname] = self.cast(col.data_type, value)
     return true
   end
   return false
 end
 
-function inject(self, values)
-  for k,v in pairs(values) do
-    self:set(k, v)
-  end
-  return self
+function primarykey()
+  
 end
 
-function new(self, db, tablename, values)
-  o = {}
-  setmetatable(o, self)
-  self.__index = self
-  self.tablename = tablename
-  self.db = db
-  self.info = db:tableinfo(tablename)
-  self.__call = function(self, values)
-    return self:inject(values)
+function set()
+  
+end
+
+function add()
+  
+end
+
+function get()
+  
+end
+
+function trigger()
+  
+end
+
+function freeze()
+  
+end
+
+function insert()
+  
+end
+
+function update()
+  
+end
+
+function delete()
+  
+end
+
+function clone()
+  
+end
+
+
+
+function getvalue(self, colname)
+  if self._values then
+    return self._values[colname]
   end
-  if values then
-    o:inject(values)
+end
+
+function getvalues(self)
+  return self._values or {}
+end
+
+function info(self)
+  return self._db:tableinfo(self.tablename)
+end
+
+function new(self, db, o)
+  local o = o or {}
+  o._db = db
+  self.__index = self
+  self.__call = function(tab, value)
+    if value[1] then
+      local r = {}
+      for _,k in ipairs(value) do
+        table.insert(r, tab:getvalue(k))
+      end
+      return unpack(r)
+    else
+      for k,v in pairs(value) do
+        tab:setvalue(k, v)
+      end
+      return tab
+    end
+  end
+  setmetatable(o, self)
+  local info = o:info()
+  for _, c in pairs(info.cols) do
+    if c.default then
+      o:setvalue(c.column, c.default)
+    end
   end
   return o
 end
@@ -66,10 +122,11 @@ function cast(ctype, value)
 end
 
 function colinfo(self, colname)
+  local info = self:info()
   if type(colname) == "number" then
-    return self.info.cols[colname]
+    return info.cols[colname]
   end
-  for _, c in pairs(self.info.cols) do
+  for _, c in pairs(info.cols) do
     if c.column == colname then
       return c
     end
