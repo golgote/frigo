@@ -274,7 +274,15 @@ function tableExists(self, tablename)
 end
 
 function fetch(self, query, values)
+  local found = {}
+  local q = string.gsub(query, '{([^}]+)}', function(t) 
+      table.insert(found, t)
+      return self:identifier(t) .. ".*"
+    end
+  )
+
   
+
 end
 
 function fetchAssoc(self, query, values)
