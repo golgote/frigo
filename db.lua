@@ -157,16 +157,16 @@ function getCol(self, q, col, ...)
   local mode = "a"
   if type(col) == "number" then mode = "n" end
 
-  local rows = cursor:fetch({}, mode)
-  if not rows then return nil end
-  if not rows[col] then error("no such field") end
+  local row = cursor:fetch({}, mode)
+  if not row then return nil end
+  if not row[col] then error("no such field") end
 
   local i = 0
   local results = {}
-	while rows do
+	while row do
 	  i = i + 1
-    results[i] = rows[col]
-    rows = cursor:fetch({}, mode)
+    results[i] = row[col]
+    row = cursor:fetch({}, mode)
 	end
 	cursor:close()
   return results
@@ -183,60 +183,60 @@ function getAssoc(self, q, group, mode, ...)
     error("truncated")
   elseif #cols == 2 then
     local results = {}
-    local rows = cursor:fetch({}, "n")
-	  while rows do
+    local row = cursor:fetch({}, "n")
+	  while row do
 	    if group then
-	      if not results[rows[1]] then
-	        results[rows[1]] = {}
+	      if not results[row[1]] then
+	        results[row[1]] = {}
 	      end
-        table.insert(results[rows[1]], rows[2])
+        table.insert(results[row[1]], row[2])
       else
-        results[rows[1]] = rows[2]
+        results[row[1]] = row[2]
       end
-      rows = cursor:fetch({}, "n")
+      row = cursor:fetch({}, "n")
 	  end
 	  cursor:close()
 	  return results
   else
     local results = {}
-    local rows = cursor:fetch({}, "n")
-	  while rows do
+    local row = cursor:fetch({}, "n")
+	  while row do
 	    if group then
-	      if not results[rows[1]] then
-	        results[rows[1]] = {}
+	      if not results[row[1]] then
+	        results[row[1]] = {}
 	      end
 	      if mode == "a" then
-	        local row = {}
-	        for i = 2, #rows do
-	          row[cols[i]] = rows[i]
+	        local r = {}
+	        for i = 2, #row do
+	          r[cols[i]] = row[i]
 	        end
-          table.insert(results[rows[1]], row)
+          table.insert(results[row[1]], r)
 	      else
-	        local row = {}
-	        for i = 2, #rows do
-	          table.insert(row, rows[i])
+	        local r = {}
+	        for i = 2, #row do
+	          table.insert(r, row[i])
 	        end
-          table.insert(results[rows[1]], row)
+          table.insert(results[row[1]], r)
 	      end
       else
-	      if not results[rows[1]] then
-	        results[rows[1]] = {}
+	      if not results[row[1]] then
+	        results[row[1]] = {}
 	      end
 	      if mode == "a" then
-	        local row = {}
-	        for i = 2, #rows do
-	          row[cols[i]] = rows[i]
+	        local r = {}
+	        for i = 2, #row do
+	          r[cols[i]] = row[i]
 	        end
-          results[rows[1]] = row
+          results[row[1]] = r
 	      else
-	        local row = {}
-	        for i = 2, #rows do
-	          table.insert(row, rows[i])
+	        local r = {}
+	        for i = 2, #row do
+	          table.insert(r, row[i])
 	        end
-          results[rows[1]] = row
+          results[row[1]] = r
 	      end
       end
-      rows = cursor:fetch({}, "n")
+      row = cursor:fetch({}, "n")
 	  end
 	  cursor:close()
 	  return results
@@ -249,12 +249,12 @@ function getAll(self, q, mode, ...)
   self:freePrepared(stmt)
 
   local results = {}
-  local rows = cursor:fetch({}, mode)
+  local row = cursor:fetch({}, mode)
   local i = 0
-	while rows do
+	while row do
 	  i = i + 1
-    results[i] = rows
-    rows = cursor:fetch({}, mode)
+    results[i] = row
+    row = cursor:fetch({}, mode)
 	end
 	cursor:close()
   return results
@@ -271,19 +271,49 @@ function factory(self, o)
   return object:new(self, o)
 end
 
+function alias(self, tablename, colname)
+  return tablename .. "." .. colname .. " AS " .. tablename .. '_' .. colname
+end
+
 function fetch(self, query, ...)
   local found = {}
   local q = string.gsub(query, '{([^}]+)}', function(t) 
       table.insert(found, t)
-      return self:identifier(t) .. ".*"
+      local info = self:tableinfo(t)
+      local replace = {}
+      for _,col in pairs(info.cols) do
+        local alias = self:alias(t, col.column)
+        table.insert(replace, alias)
+      end
+      return table.concat(replace, ", ")
     end
   )
-  local stmt = self:prepare(q)
-  local cursor = self:execute(stmt, ...)
-  
 
+  local stmt = self:prepare(q)
+  local state = { cursor = self:execute(stmt, ...), row = {} }
+  self:freePrepared(stmt)
+
+  local iterator = function(state)
+    state.row = state.cursor:fetch(state.row, "a")
+    if not state.row then
+      state.cursor:close()
+    end
+
+    local objs = {}
+    for _, tablename in ipairs(found) do
+      local info = self:tableinfo(tablename)
+      local obj = self:factory{ __table = tablename }
+      for _, col in pairs(info.cols) do
+        obj({[col.column] = state.row[tablename .. "_" .. col.column]})
+      end
+      table.insert(objs, obj)
+    end
+    return objs[1]
+  end
+
+  return iterator, state
 end
 
-function fetchAssoc(self, query, values)
+function queryAssoc(self, query, values)
     
 end

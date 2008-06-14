@@ -74,7 +74,8 @@ function tableinfo(self, tablename)
 	local pk = {}
   local autoinc = false
 
-	local cur = self.conn:execute("DESCRIBE ".. self:identifier(tablename));
+	local cur = assert(self.conn:execute("DESCRIBE ".. self:identifier(tablename)),
+	  "table '" .. tablename .. "' not found");
   local row = cur:fetch({}, "a")
   while row do
 

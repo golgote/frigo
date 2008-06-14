@@ -115,7 +115,7 @@ function new(self, db, o)
     obj.__table = o
   end
   assert(obj.__table, "frigo object requires a '__table' field")
-  assert(db:tableExists(obj.__table), "table " .. obj.__table .. " does not exist")
+  assert(db:tableExists(obj.__table), "table '" .. obj.__table .. "' not found")
 
   obj.__db = db
   self.__index = self
