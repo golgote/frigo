@@ -13,12 +13,12 @@ _DESCRIPTION = "Frigo is a simple ORM working on top of LuaSQL"
 _VERSION = "0.0.1"
 
 function setvalue(self, colname, value)
-  if not self._values then
-    self._values = {}
+  if not self.__values then
+    self.__values = {}
   end
   local col = self:colinfo(colname)
   if col then
-    self._values[colname] = self.cast(col.data_type, value)
+    self.__values[colname] = self.cast(col.data_type, value)
     return true
   end
   return false
@@ -67,45 +67,17 @@ end
 
 
 function getvalue(self, colname)
-  if self._values then
-    return self._values[colname]
+  if self.__values then
+    return self.__values[colname]
   end
 end
 
 function getvalues(self)
-  return self._values or {}
+  return self.__values or {}
 end
 
 function info(self)
-  return self._db:tableinfo(self.tablename)
-end
-
-function new(self, db, o)
-  local o = o or {}
-  o._db = db
-  self.__index = self
-  self.__call = function(tab, value)
-    if value[1] then
-      local r = {}
-      for _,k in ipairs(value) do
-        table.insert(r, tab:getvalue(k))
-      end
-      return unpack(r)
-    else
-      for k,v in pairs(value) do
-        tab:setvalue(k, v)
-      end
-      return tab
-    end
-  end
-  setmetatable(o, self)
-  local info = o:info()
-  for _, c in pairs(info.cols) do
-    if c.default then
-      o:setvalue(c.column, c.default)
-    end
-  end
-  return o
+  return self.__db:tableinfo(self.__table)
 end
 
 function cast(ctype, value)
@@ -133,4 +105,42 @@ function colinfo(self, colname)
   end
   return false
 end
+
+function new(self, db, o)
+  local obj
+  if type(o) == "table" then
+    obj = o
+  elseif type(o) == "string" then
+    obj = {}
+    obj.__table = o
+  end
+  assert(obj.__table, "frigo object requires a '__table' field")
+  assert(db:tableExists(obj.__table), "table " .. obj.__table .. " does not exist")
+
+  obj.__db = db
+  self.__index = self
+  self.__call = function(tab, value)
+    if value[1] then
+      local r = {}
+      for _,k in ipairs(value) do
+        table.insert(r, tab:getvalue(k))
+      end
+      return unpack(r)
+    else
+      for k,v in pairs(value) do
+        tab:setvalue(k, v)
+      end
+      return tab
+    end
+  end
+  setmetatable(obj, self)
+  local info = obj:info()
+  for _, c in pairs(info.cols) do
+    if c.default then
+      obj:setvalue(c.column, c.default)
+    end
+  end
+  return obj
+end
+
 

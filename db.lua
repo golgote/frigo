@@ -260,27 +260,26 @@ function getAll(self, q, mode, ...)
   return results
 end
 
-function object(self, o)
-  local tablename = o.tablename
-  assert(self:tableExists(tablename), "table " .. tablename .. " not found")
-  local class = require"frigo.object"
-  return class:new(self, o)
-end
-
 function tableExists(self, tablename)
   local list = self:tablelist()
   if list[tablename] then return true end
   return false
 end
 
-function fetch(self, query, values)
+function factory(self, o)
+  local object = require"frigo.object"
+  return object:new(self, o)
+end
+
+function fetch(self, query, ...)
   local found = {}
   local q = string.gsub(query, '{([^}]+)}', function(t) 
       table.insert(found, t)
       return self:identifier(t) .. ".*"
     end
   )
-
+  local stmt = self:prepare(q)
+  local cursor = self:execute(stmt, ...)
   
 
 end
