@@ -277,16 +277,21 @@ end
 
 function fetch(self, query, ...)
   local found = {}
-  local q = string.gsub(query, '{([^}]+)}', function(t) 
-      table.insert(found, t)
-      local info = self:tableinfo(t)
-      local replace = {}
-      for _,col in pairs(info.cols) do
-        local alias = self:alias(t, col.column)
-        table.insert(replace, alias)
-      end
-      return table.concat(replace, ", ")
+  local aliases = {}
+  local q = string.gsub(query, '{([%w_]+)%:?([^}]*)}', function(t, a) 
+    table.insert(found, t)
+    if a ~= "" then
+      aliases[t] = a
     end
+    local info = self:tableinfo(t)
+    local replace = {}
+    for _,col in pairs(info.cols) do
+      local tab = aliases[t] or t
+      local alias = self:alias(tab, col.column)
+      table.insert(replace, alias)
+    end
+    return table.concat(replace, ", ")
+  end
   )
 
   local stmt = self:prepare(q)
@@ -297,23 +302,25 @@ function fetch(self, query, ...)
     state.row = state.cursor:fetch(state.row, "a")
     if not state.row then
       state.cursor:close()
-    end
-
-    local objs = {}
-    for _, tablename in ipairs(found) do
-      local info = self:tableinfo(tablename)
-      local obj = self:factory{ __table = tablename }
-      for _, col in pairs(info.cols) do
-        obj({[col.column] = state.row[tablename .. "_" .. col.column]})
+    else
+      local objs = {}
+      for _, tablename in ipairs(found) do
+        local info = self:tableinfo(tablename)
+        local obj = self:factory{ __table = tablename }
+        for _, col in pairs(info.cols) do
+          local tab = aliases[tablename] or tablename
+          obj({[col.column] = state.row[tab .. "_" .. col.column]})
+        end
+        table.insert(objs, obj)
       end
-      table.insert(objs, obj)
+
+      if #objs > 1 then
+        return objs
+      else
+        return objs[1]
+      end
     end
-    return objs[1]
   end
 
   return iterator, state
-end
-
-function queryAssoc(self, query, values)
-    
 end
