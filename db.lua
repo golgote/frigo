@@ -275,7 +275,7 @@ function alias(self, tablename, colname)
   return tablename .. "." .. colname .. " AS " .. tablename .. '_' .. colname
 end
 
-function fetch(self, query, ...)
+function find(self, query, ...)
   local found = {}
   local aliases = {}
   local q = string.gsub(query, '{([%w_]+)%:?([^}]*)}', function(t, a) 
@@ -309,7 +309,7 @@ function fetch(self, query, ...)
         local obj = self:factory{ __table = tablename }
         for _, col in pairs(info.cols) do
           local tab = aliases[tablename] or tablename
-          obj({[col.column] = state.row[tab .. "_" .. col.column]})
+          obj:setvalue(col.column, state.row[tab .. "_" .. col.column])
         end
         table.insert(objs, obj)
       end
@@ -323,4 +323,79 @@ function fetch(self, query, ...)
   end
 
   return iterator, state
+end
+
+function findOne(self, tablename, options, ...)
+  local options = options or {}
+  local query = "SELECT {".. tablename .. "} FROM "
+  if options.using then
+    if string.find(query, "%s+[Uu][Ss][Ii][Nn][Gg]%s+") then
+      query = query .. options.using
+    else
+      query = query .. self:identifier(tablename) .. ", " .. options.using
+    end
+  else
+    query = query .. self:identifier(tablename)
+  end
+  if options.where then
+    query = query .. " WHERE " .. options.where
+  end
+  if options.groupby then
+    query = query .. " GROUP BY " .. options.groupby
+  end
+  if options.having then
+    query = query .. " HAVING " .. options.having
+  end
+  if options.orderby then
+    query = query .. " ORDER BY " .. options.orderby
+  end
+  query = self:limitQuery(query, 1)
+  for obj in self:find(query, ...) do
+    return obj
+  end
+end
+
+function findAll(self, tablename, options, ...)
+  local options = options or {}
+  local query = "SELECT {".. tablename .. "} FROM "
+  if options.using then
+    if string.find(query, "%s+[Uu][Ss][Ii][Nn][Gg]%s+") then
+      query = query .. options.using
+    else
+      query = query .. self:identifier(tablename) .. ", " .. options.using
+    end
+  else
+    query = query .. self:identifier(tablename)
+  end
+  if options.where then
+    query = query .. " WHERE " .. options.where
+  end
+  if options.groupby then
+    query = query .. " GROUP BY " .. options.groupby
+  end
+  if options.having then
+    query = query .. " HAVING " .. options.having
+  end
+  if options.orderby then
+    query = query .. " ORDER BY " .. options.orderby
+  end
+  query = self:limitQuery(query, options.limit, options.offset)
+  local objs = {}
+  for obj in self:find(query, ...) do
+    table.insert(objs, obj)
+  end
+  return objs
+end
+
+function findId(self, tablename, ...)
+  local info = self:tableinfo(tablename)
+  local pk = info.pk
+  if #pk ~= select('#', ...) then
+    error("number of arguments mismatch")
+  end
+  local where = {}
+  for _, k in pairs(pk) do
+    table.insert(where, self:identifier(k) .. " = ?")
+  end
+  return self:findOne(tablename, {where = table.concat(where, " AND ")}, ...)
 end

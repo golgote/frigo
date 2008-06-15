@@ -24,10 +24,6 @@ function setvalue(self, colname, value)
   return false
 end
 
-function primarykey()
-  
-end
-
 function set()
   
 end
@@ -63,8 +59,6 @@ end
 function clone()
   
 end
-
-
 
 function getvalue(self, colname)
   if self.__values then
