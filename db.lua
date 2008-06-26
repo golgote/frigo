@@ -11,30 +11,43 @@ _COPYRIGHT = "Copyright (C) 2008 Bertrand Mansion"
 _DESCRIPTION = "Frigo DB is a simple wrapper for common LuaSQL manipulations."
 _VERSION = "0.0.1"
 
-function connect(driver, database, username, password, ...)
+function new(driver, options)
   assert(driver, "driver required to make luasql connection")
 
+  local options = options or {}
   local connection = {
+    driver = driver,
     prepared_queries = {},
     last_query = "",
-    infocache = {}
+    infocache = {},
+    notfound = {},
+    options = options
   }
-  local luasql = require("luasql.mysql")
-  local env, err = luasql[driver]()
-  if not env then error(err) end
 
-  local conn, err = env:connect(database, username, password, ...)
-  if not conn then error(err) end
-
-  connection.conn = conn
   local adapter = require("frigo.adapter." .. driver)
   for k, v in pairs(adapter) do
     if k ~= "_M" then
       connection[k] = v
     end
   end
+
   setmetatable(connection, {__index = _M})
   return connection
+end
+
+function connect(self, database, username, password, ...)
+  local luasql = require("luasql." .. self.driver)
+  local env, err = luasql[self.driver]()
+  if not env then
+    error(err)
+  end
+
+  local conn, err = env:connect(database, username, password, ...)
+  if not conn then 
+    error(err)
+  end
+  self.conn = conn
+  return self
 end
 
 function close(self)
@@ -267,6 +280,9 @@ function tableExists(self, tablename)
 end
 
 function factory(self, o)
+  if not self.notfound then
+    self.notfound = {}
+  end
   local object = require"frigo.object"
   return object:new(self, o)
 end
