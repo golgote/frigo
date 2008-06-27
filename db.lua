@@ -36,6 +36,9 @@ function new(driver, options)
 end
 
 function connect(self, database, username, password, ...)
+  if self.conn then
+    error("database is already connected")
+  end
   local luasql = require("luasql." .. self.driver)
   local env, err = luasql[self.driver]()
   if not env then
@@ -55,7 +58,6 @@ function close(self)
 	self.conn = nil
 	self.last_query = ""
 	self:freePrepared()
-	setmetatable(self, nil)
 end
 
 function identifier(self, str)
@@ -280,9 +282,6 @@ function tableExists(self, tablename)
 end
 
 function factory(self, o)
-  if not self.notfound then
-    self.notfound = {}
-  end
   local object = require"frigo.object"
   return object:new(self, o)
 end
@@ -323,10 +322,13 @@ function find(self, query, ...)
       for _, tablename in ipairs(found) do
         local info = self:tableinfo(tablename)
         local obj = self:factory{ __table = tablename }
+        obj.__loaded = true
+        obj:trigger("onLoad")
         for _, col in pairs(info.cols) do
           local tab = aliases[tablename] or tablename
           obj:setvalue(col.column, state.row[tab .. "_" .. col.column])
         end
+        obj:trigger("onLoaded")
         table.insert(objs, obj)
       end
 
@@ -341,7 +343,7 @@ function find(self, query, ...)
   return iterator, state
 end
 
-function findOne(self, tablename, options, ...)
+function buildFindQuery(self, tablename, options)
   local options = options or {}
   local query = "SELECT {".. tablename .. "} FROM "
   if options.using then
@@ -365,6 +367,11 @@ function findOne(self, tablename, options, ...)
   if options.orderby then
     query = query .. " ORDER BY " .. options.orderby
   end
+  return query
+end
+
+function findOne(self, tablename, options, ...)
+  local query = self:buildFindQuery(tablename, options)
   query = self:limitQuery(query, 1)
   for obj in self:find(query, ...) do
     return obj
@@ -372,29 +379,7 @@ function findOne(self, tablename, options, ...)
 end
 
 function findAll(self, tablename, options, ...)
-  local options = options or {}
-  local query = "SELECT {".. tablename .. "} FROM "
-  if options.using then
-    if string.find(query, "%s+[Uu][Ss][Ii][Nn][Gg]%s+") then
-      query = query .. options.using
-    else
-      query = query .. self:identifier(tablename) .. ", " .. options.using
-    end
-  else
-    query = query .. self:identifier(tablename)
-  end
-  if options.where then
-    query = query .. " WHERE " .. options.where
-  end
-  if options.groupby then
-    query = query .. " GROUP BY " .. options.groupby
-  end
-  if options.having then
-    query = query .. " HAVING " .. options.having
-  end
-  if options.orderby then
-    query = query .. " ORDER BY " .. options.orderby
-  end
+  local query = self:buildFindQuery(tablename, options)
   query = self:limitQuery(query, options.limit, options.offset)
   local objs = {}
   for obj in self:find(query, ...) do

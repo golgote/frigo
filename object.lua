@@ -13,50 +13,108 @@ _DESCRIPTION = "Frigo is a simple ORM working on top of LuaSQL"
 _VERSION = "0.0.1"
 
 function setvalue(self, colname, value)
-  if not self.__values then
-    self.__values = {}
-  end
   local col = self:colinfo(colname)
   if col then
     self.__values[colname] = self.cast(col.data_type, value)
+    self.__dirty = true
     return true
   end
   return false
 end
 
-function set()
+function set(self)
   
 end
 
-function add()
+function add(self)
   
 end
 
-function get()
+function getRelation(self, tablename)
+--[[  if not self.relations then
+    return nil
+  end
+  -- todo : cache constructed relations
+  for _, tab in pairs(self.relations) do
+    if #tab > 3 then
+      -- n:n
+
+    else
+      -- 1:1 or 1:n
+
+    end
+  end
+  local relation = {
+    from = "",
+    to = "",
+    prepareSelect = function(self, options, values)
+      
+    end,
+  }
+  return relation]]
+end
+
+function getOne(self, tablename, options, ...)
+--[[  local info = self:info()
+  for _, colname in pairs(info.pk) do
+    if not self.__values[colname] then
+      return
+    end
+  end
+
+  local values = ...
+  local loaded = true;
+  local relation = self:getRelation(tablename)
+  if not relation then
+    error("no relation between ".. self.__table .. " and " .. tablename)
+  end
+
+  relation:prepareSelect(options, values)
+
+  local obj = self.__db:findOne(tablename, options, unpack(values))
+  -- local obj = self.__db:findMany(tablename, options, unpack(values))
+
+]]
+end
+
+function getMany(self, tablename, options, ...)
   
 end
 
-function trigger()
+function trigger(self, func)
   
 end
 
-function freeze()
+function freeze(self)
   
 end
 
-function insert()
-  
+function insert(self)
+  self:trigger("onInsert")
+
+
+  self:trigger("onInserted")
+  return self
 end
 
-function update()
-  
+
+function update(self)
+  self:trigger("onUpdate")
+
+
+  self:trigger("onUpdated")
+  return self
 end
 
-function delete()
-  
+function delete(self)
+  self:trigger("onDelete")
+
+
+  self:trigger("onDeleted")
+  return self
 end
 
-function clone()
+function clone(self)
   
 end
 
@@ -108,10 +166,41 @@ function new(self, db, o)
     obj = {}
     obj.__table = o
   end
+
   assert(obj.__table, "frigo object requires a '__table' field")
   assert(db:tableExists(obj.__table), "table '" .. obj.__table .. "' not found")
 
+  -- load object if found
+
+  local path = package.path
+  if db.options["path"] then
+    package.path = db.options["path"]
+  end
+  local prefix = ""
+  if db.options["prefix"] then
+    prefix = db.options["prefix"] .. "."
+  end
+  local mod = prefix .. obj.__table
+
+  local status, model = nil, {}
+  if not db.notfound[mod] then
+    status, model = pcall(require, mod)
+    if not status then
+      db.notfound[mod] = true
+      model = {}
+    else
+      for k, v in pairs(model) do
+        if k ~= "_M" then
+          obj[k] = v
+        end
+      end
+    end
+  end
+  package.path = path
+
   obj.__db = db
+  obj.__values = {}
+  obj.__loaded = false
   self.__index = self
   self.__call = function(tab, value)
     if value[1] then
@@ -134,6 +223,8 @@ function new(self, db, o)
       obj:setvalue(c.column, c.default)
     end
   end
+  obj.__dirty = false
+  obj:trigger("onInit")
   return obj
 end
 
