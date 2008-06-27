@@ -12,7 +12,7 @@ _COPYRIGHT = "Copyright (C) 2008 Bertrand Mansion"
 _DESCRIPTION = "Frigo is a simple ORM working on top of LuaSQL"
 _VERSION = "0.0.1"
 
-function setvalue(self, colname, value)
+function setValue(self, colname, value)
   local col = self:colinfo(colname)
   if col then
     self.__values[colname] = self.cast(col.data_type, value)
@@ -20,6 +20,16 @@ function setvalue(self, colname, value)
     return true
   end
   return false
+end
+
+function getValue(self, colname)
+  if self.__values then
+    return self.__values[colname]
+  end
+end
+
+function getValues(self)
+  return self.__values or {}
 end
 
 function set(self)
@@ -30,8 +40,19 @@ function add(self)
   
 end
 
-function getRelation(self, tablename)
---[[  if not self.relations then
+function globalKey(self)
+  local info = self:info()
+  local key = ""
+  for _, colname in pairs(info.pk) do
+    local value = assert(self:getValue(colname), "object's primary key is not set")
+    key = key .. "." .. value
+  end
+  return self.__table .. key
+end
+
+--[[function getRelation(self, tablename)
+
+  if not self.relations then
     return nil
   end
   -- todo : cache constructed relations
@@ -51,34 +72,21 @@ function getRelation(self, tablename)
       
     end,
   }
-  return relation]]
-end
+  return relation
+end]]
 
 function getOne(self, tablename, options, ...)
---[[  local info = self:info()
-  for _, colname in pairs(info.pk) do
-    if not self.__values[colname] then
-      return
-    end
-  end
-
+  local k = self:globalKey()
   local values = ...
-  local loaded = true;
-  local relation = self:getRelation(tablename)
-  if not relation then
-    error("no relation between ".. self.__table .. " and " .. tablename)
-  end
-
+  local options = options
+  local relation = assert(self:getRelation(tablename), "no relation between ".. self.__table .. " and " .. tablename .. " was defined")
   relation:prepareSelect(options, values)
-
   local obj = self.__db:findOne(tablename, options, unpack(values))
-  -- local obj = self.__db:findMany(tablename, options, unpack(values))
-
-]]
+  return obj
 end
 
 function getMany(self, tablename, options, ...)
-  
+  -- local obj = self.__db:findMany(tablename, options, unpack(values))  
 end
 
 function trigger(self, func)
@@ -118,16 +126,6 @@ function clone(self)
   
 end
 
-function getvalue(self, colname)
-  if self.__values then
-    return self.__values[colname]
-  end
-end
-
-function getvalues(self)
-  return self.__values or {}
-end
-
 function info(self)
   return self.__db:tableinfo(self.__table)
 end
@@ -159,6 +157,7 @@ function colinfo(self, colname)
 end
 
 function new(self, db, o)
+  
   local obj
   if type(o) == "table" then
     obj = o
@@ -172,46 +171,28 @@ function new(self, db, o)
 
   -- load object if found
 
-  local path = package.path
-  if db.options["path"] then
-    package.path = db.options["path"]
-  end
-  local prefix = ""
-  if db.options["prefix"] then
-    prefix = db.options["prefix"] .. "."
-  end
-  local mod = prefix .. obj.__table
+  local model = db:preload(obj.__table)
 
-  local status, model = nil, {}
-  if not db.notfound[mod] then
-    status, model = pcall(require, mod)
-    if not status then
-      db.notfound[mod] = true
-      model = {}
-    else
-      for k, v in pairs(model) do
-        if k ~= "_M" then
-          obj[k] = v
-        end
-      end
+  for k, v in pairs(model) do
+    if k ~= "_M" then
+      obj[k] = v
     end
   end
-  package.path = path
 
   obj.__db = db
   obj.__values = {}
-  obj.__loaded = false
+  obj.__exists = false
   self.__index = self
   self.__call = function(tab, value)
     if value[1] then
       local r = {}
       for _,k in ipairs(value) do
-        table.insert(r, tab:getvalue(k))
+        table.insert(r, tab:getValue(k))
       end
       return unpack(r)
     else
       for k,v in pairs(value) do
-        tab:setvalue(k, v)
+        tab:setValue(k, v)
       end
       return tab
     end
@@ -220,7 +201,7 @@ function new(self, db, o)
   local info = obj:info()
   for _, c in pairs(info.cols) do
     if c.default then
-      obj:setvalue(c.column, c.default)
+      obj:setValue(c.column, c.default)
     end
   end
   obj.__dirty = false

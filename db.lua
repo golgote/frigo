@@ -13,17 +13,19 @@ _VERSION = "0.0.1"
 
 function new(driver, options)
   assert(driver, "driver required to make luasql connection")
-
   local options = options or {}
   local connection = {
-    driver = driver,
-    prepared_queries = {},
-    last_query = "",
-    infocache = {},
-    notfound = {},
-    options = options
+    driver = driver,       -- luasql driver type
+    prepared_queries = {}, -- prepared statements
+    last_query = "",       -- last executed query
+    infocache = {},        -- cache database meta info
+    relationcache = {},    -- related objects cache
+    mappings = {},         -- maps object module names
+    notfound = {},         -- keep track of modules not found
+    options = options      -- prefix for custom objects modules
   }
 
+  -- loads the custom SQL adapter for the given driver
   local adapter = require("frigo.adapter." .. driver)
   for k, v in pairs(adapter) do
     if k ~= "_M" then
@@ -31,6 +33,7 @@ function new(driver, options)
     end
   end
 
+  -- connection object receives this module as metatable.__index
   setmetatable(connection, {__index = _M})
   return connection
 end
@@ -39,12 +42,15 @@ function connect(self, database, username, password, ...)
   if self.conn then
     error("database is already connected")
   end
+  
+  -- starts the luasql driver
   local luasql = require("luasql." .. self.driver)
   local env, err = luasql[self.driver]()
   if not env then
     error(err)
   end
 
+  -- connects with luasql
   local conn, err = env:connect(database, username, password, ...)
   if not conn then 
     error(err)
@@ -54,9 +60,12 @@ function connect(self, database, username, password, ...)
 end
 
 function close(self)
+  -- closes the luasql connection
 	self.conn:close()
+	-- performs some cleanup
 	self.conn = nil
 	self.last_query = ""
+  self.relatedcache = {}
 	self:freePrepared()
 end
 
@@ -322,11 +331,11 @@ function find(self, query, ...)
       for _, tablename in ipairs(found) do
         local info = self:tableinfo(tablename)
         local obj = self:factory{ __table = tablename }
-        obj.__loaded = true
+        obj.__exists = true
         obj:trigger("onLoad")
         for _, col in pairs(info.cols) do
           local tab = aliases[tablename] or tablename
-          obj:setvalue(col.column, state.row[tab .. "_" .. col.column])
+          obj:setValue(col.column, state.row[tab .. "_" .. col.column])
         end
         obj:trigger("onLoaded")
         table.insert(objs, obj)
@@ -400,3 +409,33 @@ function findId(self, tablename, ...)
   end
   return self:findOne(tablename, {where = table.concat(where, " AND ")}, ...)
 end
+
+function preload(self, tablename, prefix)
+  local mod = tablename
+  if prefix then
+    mod = prefix .. "." .. mod
+  elseif self.mappings[tablename] then
+    mod = self.mappings[tablename]
+  elseif self.options["prefix"] then
+    mod = self.options["prefix"] .. "." .. mod
+  end
+
+  if self.notfound[mod] then return {} end
+  local status, model = pcall(require, mod)
+  if not status then
+    self.notfound[mod] = true
+    return {}
+  end
+  self.mappings[tablename] = mod
+  return model
+end
+
+--[[
+function getRelation(self, table1, table2)
+  if self.relationcache[table1] and self.relationcache[table1][table2] then
+    return self.relationcache[table1][table2]["relation"]
+  end
+  
+  
+end
+]]
