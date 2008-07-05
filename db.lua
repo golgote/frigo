@@ -19,7 +19,7 @@ function new(driver, options)
     prepared_queries = {}, -- prepared statements
     last_query = "",       -- last executed query
     infocache = {},        -- cache database meta info
-    relationcache = {},    -- related objects cache
+    relations = {},        -- related objects cache
     mappings = {},         -- maps object module names
     notfound = {},         -- keep track of modules not found
     options = options      -- prefix for custom objects modules
@@ -111,6 +111,7 @@ function execute(self, stmt, ...)
   else
     last_query = self:buildQuery(stmt, ...)
   end
+  print(last_query)
   local cursor, msg = assert(self.conn:execute(last_query))
 	return cursor or error(msg .. " SQL = { " .. last_query .. " }", 2)
 end
@@ -337,6 +338,7 @@ function find(self, query, ...)
           local tab = aliases[tablename] or tablename
           obj:setValue(col.column, state.row[tab .. "_" .. col.column])
         end
+        obj.__dirty = false
         obj:trigger("onLoaded")
         table.insert(objs, obj)
       end
@@ -356,7 +358,7 @@ function buildFindQuery(self, tablename, options)
   local options = options or {}
   local query = "SELECT {".. tablename .. "} FROM "
   if options.using then
-    if string.find(query, "%s+[Uu][Ss][Ii][Nn][Gg]%s+") then
+    if string.find(options.using,  self:identifier(tablename)) then
       query = query .. options.using
     else
       query = query .. self:identifier(tablename) .. ", " .. options.using
@@ -426,16 +428,111 @@ function preload(self, tablename, prefix)
     self.notfound[mod] = true
     return {}
   end
+
   self.mappings[tablename] = mod
+
+  -- add relations defined in the module
+  if model.relations then
+    for table2, relation in pairs(model.relations) do
+      self:addRelation(tablename, table2, relation)
+    end
+    model.relations = nil
+  end
   return model
 end
 
---[[
-function getRelation(self, table1, table2)
-  if self.relationcache[table1] and self.relationcache[table1][table2] then
-    return self.relationcache[table1][table2]["relation"]
+function addRelation(self, table1, table2, relation)
+  if not self:getRelation(table1, table2) then
+    local rel = {
+      joins = {},
+      link = function(self, from, to)
+    
+    
+    
+      end,
+      has = function(self, values)
+      
+      
+      end,
+      get = function(self, values)
+      
+      
+      end,
+      cache = function(self, obj)
+      
+      
+      end,
+      prepare = function(self, from, table2, options, values)
+        local using = ""
+        local table1 = from.__table
+        local join = {}
+
+        -- todo : escape tablename 
+        
+        -- using
+
+        if self.pivot then
+          -- n:n
+          
+          
+        else
+          local cols = self.joins[table1]
+          for k,v in pairs(cols) do
+            local j = table1 .. "." .. k .. " = " .. table2 .. "." .. v
+            table.insert(join, j)
+          end
+          using = from.__db:identifier(table1) .. " INNER JOIN " .. 
+            from.__db:identifier(table2) .. " ON " ..
+            "(" .. table.concat(join, " AND ") .. ")"
+        end
+
+        if options.using then
+          options.using = options.using .. using
+        else
+          options.using = using
+        end
+        
+        -- where
+        local where = {}
+        local primaryKey = from:info().pk
+        for _, pk in ipairs(primaryKey) do
+          where[#where+1] = table1 .. "." .. pk .. " = ?"
+          values[#values+1] = from:getValue(pk)
+        end
+        if options.where then
+          options.where = table.concat(where, " AND ") .. " AND " .. options.where
+        else
+          options.where = table.concat(where, " AND ")
+        end
+      end,
+      init = function(self, table1, table2, relation)
+        self.pivot = relation.pivot or nil
+        self.cascade = relation.cascade or false
+        for from,to in pairs(relation.join) do
+          if not self.joins[table1] then
+            self.joins[table1] = {}
+          end
+          if not self.joins[table2] then
+            self.joins[table2] = {}
+          end
+          self.joins[table1][from] = to
+          self.joins[table2][to] = from
+        end
+      end
+    }
+    rel:init(table1, table2, relation)
+    if not self.relations[table1] then
+      self.relations[table1] = {}
+    end
+    self.relations[table1][table2] = rel
   end
-  
-  
 end
-]]
+
+
+
+
+function getRelation(self, table1, table2)
+  if self.relations[table1] and self.relations[table1][table2] then
+    return self.relations[table1][table2]
+  end
+end

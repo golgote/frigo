@@ -50,38 +50,20 @@ function globalKey(self)
   return self.__table .. key
 end
 
---[[function getRelation(self, tablename)
-
-  if not self.relations then
-    return nil
-  end
-  -- todo : cache constructed relations
-  for _, tab in pairs(self.relations) do
-    if #tab > 3 then
-      -- n:n
-
-    else
-      -- 1:1 or 1:n
-
-    end
-  end
-  local relation = {
-    from = "",
-    to = "",
-    prepareSelect = function(self, options, values)
-      
-    end,
-  }
-  return relation
-end]]
-
-function getOne(self, tablename, options, ...)
+function getOne(self, table2, options, ...)
   local k = self:globalKey()
-  local values = ...
-  local options = options
-  local relation = assert(self:getRelation(tablename), "no relation between ".. self.__table .. " and " .. tablename .. " was defined")
-  relation:prepareSelect(options, values)
-  local obj = self.__db:findOne(tablename, options, unpack(values))
+  local values = {...}
+  local options = options or {}
+  local relation = assert(self.__db:getRelation(self.__table, table2), "relations between ".. self.__table .. " and " .. table2 .. " must be defined in module")  
+  if relation.has(values) then
+    return relation.get(values)
+  end
+
+  relation:prepare(self, table2, options, values)
+  local obj = self.__db:findOne(table2, options, unpack(values))
+  if obj then
+    relation.cache(obj)
+  end
   return obj
 end
 
@@ -157,7 +139,6 @@ function colinfo(self, colname)
 end
 
 function new(self, db, o)
-  
   local obj
   if type(o) == "table" then
     obj = o
@@ -169,10 +150,7 @@ function new(self, db, o)
   assert(obj.__table, "frigo object requires a '__table' field")
   assert(db:tableExists(obj.__table), "table '" .. obj.__table .. "' not found")
 
-  -- load object if found
-
   local model = db:preload(obj.__table)
-
   for k, v in pairs(model) do
     if k ~= "_M" then
       obj[k] = v
