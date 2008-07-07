@@ -12,6 +12,17 @@ _COPYRIGHT = "Copyright (C) 2008 Bertrand Mansion"
 _DESCRIPTION = "Frigo is a simple ORM working on top of LuaSQL"
 _VERSION = "0.0.1"
 
+
+function globalKey(self)
+  local info = self:info()
+  local k = {}
+  for _, colname in pairs(info.pk) do
+    local value = assert(self:getValue(colname), "object's primary key is not set")
+    table.insert(k, value)
+  end
+  return table.concat(k, "__")
+end
+
 function setValue(self, colname, value)
   local col = self:colinfo(colname)
   if col then
@@ -32,22 +43,23 @@ function getValues(self)
   return self.__values or {}
 end
 
-function set(self)
+function set(self, obj)
   
 end
 
-function add(self)
-  
-end
+function add(self, obj)
+  --local status, key = pcall(obj.globalKey, obj)
+  if not self.__exists then
+    -- save the object
 
-function globalKey(self)
-  local info = self:info()
-  local key = ""
-  for _, colname in pairs(info.pk) do
-    local value = assert(self:getValue(colname), "object's primary key is not set")
-    key = key .. "." .. value
   end
-  return self.__table .. key
+  if obj.__exists then
+    -- loaded object
+    --self.__db:cached()
+  else
+    -- loaded object
+    --relation:link(self, obj)
+  end
 end
 
 function getOne(self, table2, options, ...)
@@ -55,19 +67,20 @@ function getOne(self, table2, options, ...)
   local values = {...}
   local options = options or {}
   local relation = assert(self.__db:getRelation(self.__table, table2), "relations between ".. self.__table .. " and " .. table2 .. " must be defined in module")  
-  if relation.has(values) then
-    return relation.get(values)
-  end
-
   relation:prepare(self, table2, options, values)
   local obj = self.__db:findOne(table2, options, unpack(values))
   if obj then
-    relation.cache(obj)
+    local cached = self.__db:cached(obj)
+    if cached then
+      return cached 
+    else
+      self.__db:cache(obj)
+    end
   end
   return obj
 end
 
-function getMany(self, tablename, options, ...)
+function getAll(self, tablename, options, ...)
   -- local obj = self.__db:findMany(tablename, options, unpack(values))  
 end
 
