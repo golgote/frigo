@@ -20,7 +20,6 @@ function new(driver, options)
     last_query = "",       -- last executed query
     infocache = {},        -- cache database meta info
     relations = {},        -- related objects cache
-    loaded = {},           -- related objects cache
     mappings = {},         -- maps object module names
     notfound = {},         -- keep track of modules not found
     options = options      -- prefix for custom objects modules
@@ -463,22 +462,4 @@ function getRelation(self, table1, table2)
   if self.relations[table1] and self.relations[table1][table2] then
     return self.relations[table1][table2]
   end
-end
-
-function cached(self, obj)
-  local key = obj:globalKey()
-  local tablename = obj.__table
-  if self.loaded[tablename] and self.loaded[tablename][key] then
-    return self.loaded[tablename][key]
-  end
-end
-
-function cache(self, obj)
-  local key = obj:globalKey()
-  local tablename = obj.__table
-  if not self.loaded[tablename] then
-    self.loaded[tablename] = {}
-  end
-  self.loaded[tablename][key] = obj
-  return obj
 end

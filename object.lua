@@ -13,16 +13,6 @@ _DESCRIPTION = "Frigo is a simple ORM working on top of LuaSQL"
 _VERSION = "0.0.1"
 
 
-function globalKey(self)
-  local info = self:info()
-  local k = {}
-  for _, colname in pairs(info.pk) do
-    local value = assert(self:getValue(colname), "object's primary key is not set")
-    table.insert(k, value)
-  end
-  return table.concat(k, "__")
-end
-
 function setValue(self, colname, value)
   local col = self:colinfo(colname)
   if col then
@@ -48,9 +38,8 @@ function set(self, obj)
 end
 
 function add(self, obj)
-  --local status, key = pcall(obj.globalKey, obj)
   if not self.__exists then
-    -- save the object
+    -- starts by saving the object if not saved
 
   end
   if obj.__exists then
@@ -63,20 +52,11 @@ function add(self, obj)
 end
 
 function getOne(self, table2, options, ...)
-  local k = self:globalKey()
   local values = {...}
   local options = options or {}
   local relation = assert(self.__db:getRelation(self.__table, table2), "relations between ".. self.__table .. " and " .. table2 .. " must be defined in module")  
   relation:prepare(self, table2, options, values)
   local obj = self.__db:findOne(table2, options, unpack(values))
-  if obj then
-    local cached = self.__db:cached(obj)
-    if cached then
-      return cached 
-    else
-      self.__db:cache(obj)
-    end
-  end
   return obj
 end
 
