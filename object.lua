@@ -16,6 +16,13 @@ _VERSION = "0.0.1"
 function setValue(self, colname, value)
   local col = self:colinfo(colname)
   if col then
+    if self.__exists and col.key and self.__values[colname] then
+      -- store older primary key for update
+      if not self.__previously then self.__previously = {} end
+      if not self.__previously[colname] then
+        self.__previously[colname] = self.__values[colname]
+      end
+    end
     self.__values[colname] = self.cast(col.data_type, value)
     self.__dirty = true
     return true
@@ -23,14 +30,17 @@ function setValue(self, colname, value)
   return false
 end
 
-function getValue(self, colname)
+function value(self, colname)
   if self.__values then
     return self.__values[colname]
   end
 end
 
-function getValues(self)
-  return self.__values or {}
+function values(self, return_type)
+  if not self.__values then
+    return {}
+  end
+  return self.__values
 end
 
 function set(self, obj)
@@ -38,17 +48,13 @@ function set(self, obj)
 end
 
 function add(self, obj)
+  local relation = assert(self.__db:getRelation(self.__table, obj.__table), "relations between ".. self.__table .. " and " .. obj.__table .. " must be defined in module")  
   if not self.__exists then
     -- starts by saving the object if not saved
-
+    self:freeze()
   end
-  if obj.__exists then
-    -- loaded object
-    --self.__db:cached()
-  else
-    -- loaded object
-    --relation:link(self, obj)
-  end
+  relation:link(self, obj)
+  obj:freeze()
 end
 
 function getOne(self, table2, options, ...)
@@ -65,17 +71,55 @@ function getAll(self, tablename, options, ...)
 end
 
 function trigger(self, func)
-  
+  if self[func] and type(self[func]) == "function" then
+    return self[func](self)
+  end
 end
 
 function freeze(self)
-  
+  if not self.__exists then
+    self:insert()
+  end
+  if self.__dirty then
+    self:update()
+  end
+  -- freeze relations, cascade ?
+
+  return self
 end
 
 function insert(self)
   self:trigger("onInsert")
+  local info = self:info()
+  local query = "INSERT INTO " .. self.__db:identifier(self.__table) .. " ("
+  local cols = {}
+  local vals = {}
+  for k,col in ipairs(info.cols) do
+    if self.__values[col.column] then
+      cols[#cols+1] = self.__db:identifier(col.column)
+      vals[#vals+1] = "?"
+    elseif col.null then
+      cols[#cols+1] = self.__db:identifier(col.column)
+      vals[#vals+1] = "NULL"
+    end
+  end
+  query = query .. table.concat(cols, ", ") .. ") VALUES ("
+  query = query .. table.concat(vals, ", ") .. ")"
 
-
+  local stmt = self.__db:prepare(query)
+  local values = {}
+  for i,col in ipairs(info.cols) do
+    if self.__values[col.column] then
+      values[#values+1] = self.__values[col.column]
+    end
+  end
+  self.__db:execute(stmt, values)
+  if info.autoinc then
+    local last_id = self.__db:lastInsertId()
+    self:setValue(info.pk[1], last_id)
+  end
+  self.__exists = true
+  self.__dirty = false
   self:trigger("onInserted")
   return self
 end
@@ -83,8 +127,33 @@ end
 
 function update(self)
   self:trigger("onUpdate")
-
-
+  local info = self:info()
+  local query = "UPDATE " .. self.__db:identifier(self.__table) .. " SET "
+  local cols = {}
+  local values = {}
+  local where = {}
+  for k,col in ipairs(info.cols) do
+    if self.__values[col.column] then
+      cols[#cols+1] = self.__db:identifier(col.column) .. " = ?"
+      values[#values+1] = self.__values[col.column]
+    elseif col.null then
+      cols[#cols+1] = self.__db:identifier(col.column) .. " = NULL"
+    end
+  end
+  query = query .. table.concat(cols, ", ") .. " WHERE "
+  for _, pk in ipairs(info.pk) do
+    where[#where+1] = self.__db:identifier(pk) .. " = ?"
+    if self.__previously[pk] then
+      values[#values+1] = self.__previously[pk]
+    else
+      values[#values+1] = self.__values[pk]
+    end
+  end
+  query = query .. table.concat(where, " AND ")
+  local stmt = self.__db:prepare(query)
+  self.__db:execute(stmt, values)
+  self.__dirty = false
+  self.__previously = nil
   self:trigger("onUpdated")
   return self
 end
@@ -158,7 +227,7 @@ function new(self, db, o)
     if value[1] then
       local r = {}
       for _,k in ipairs(value) do
-        table.insert(r, tab:getValue(k))
+        table.insert(r, tab:value(k))
       end
       return unpack(r)
     else

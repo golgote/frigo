@@ -22,7 +22,7 @@ function new(driver, options)
     relations = {},        -- related objects cache
     mappings = {},         -- maps object module names
     notfound = {},         -- keep track of modules not found
-    options = options      -- prefix for custom objects modules
+    options = options,     -- prefix for custom objects modules
   }
 
   -- loads the custom SQL adapter for the given driver
@@ -76,6 +76,10 @@ function close(self)
 	self:freePrepared()
 end
 
+function lastInsertId(self)
+  return self.conn:getlastautoid()
+end
+
 function identifier(self, str)
   return '"' .. str:gsub('"', '""') .. '"'
 end
@@ -107,7 +111,7 @@ function prepare(self, q)
     q:gsub("%?([^%?]*)$", function(c) table.insert(tokens, c) end)
     table.insert(self.prepared_queries, tokens)
   else
-    table.insert(self.prepared_queries, q)
+    table.insert(self.prepared_queries, {q})
   end
   return #self.prepared_queries
 end
@@ -124,15 +128,20 @@ end
 
 function buildQuery(self, stmt, ...)
   local stmt = assert(self.prepared_queries[stmt], "prepared statement not found")
-  local count = select("#", ...)
+  local values = {...}
+  if values[1] and type(values[1]) == "table" then
+    values = values[1]
+  end
+  local count = #values
   local query = ""
+
+  if (#stmt-1) ~= count then
+    error("prepared statement expected " .. (#stmt-1) .. " values, got " .. count)
+  end
+
   if count > 0 then
-    if type(stmt) == "string" or (#stmt-1) ~= count then
-      error("prepared statement expected " ..
-        #stmt .. " values, got " .. count)
-    end
-    for i = 1, count do
-      local value = self:quote(select(i, ...))
+    for i=1, count do
+      local value = self:quote(values[i])
       query = query .. stmt[i] .. value
     end
     if stmt[count+1] then
@@ -140,7 +149,7 @@ function buildQuery(self, stmt, ...)
     end
     return query
   else
-    return stmt
+    return stmt[1]
   end
 end
 
@@ -459,7 +468,9 @@ function addRelation(self, table1, table2, relation)
 end
 
 function getRelation(self, table1, table2)
-  if self.relations[table1] and self.relations[table1][table2] then
+  if not table2 then
+    return self.relations[table1]
+  elseif self.relations[table1] and self.relations[table1][table2] then
     return self.relations[table1][table2]
   end
 end

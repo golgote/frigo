@@ -84,6 +84,7 @@ function tableinfo(self, tablename)
     field.column = row.Field
     if row.Key == 'PRI' then
       table.insert(pk, row.Field)
+      field.key = true
     end
 
     local type, length, precision = string.match(row.Type, "(%w+)%(?(%d*),?(%d*)%)?")
