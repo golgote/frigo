@@ -92,7 +92,7 @@ function tableinfo(self, tablename)
     field.type = type
     field.length = length ~= "" and tonumber(length) or nil
     field.precision = precision ~= "" and tonumber(precision) or nil
-    field.default = row.Default
+    field.default = self:cast(field.data_type, row.Default)
     field.tablename = tablename
     if row.Extra == "auto_increment" and row.Key == "PRI" then
       autoinc = true

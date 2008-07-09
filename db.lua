@@ -104,6 +104,19 @@ function quote(self, val)
   end
 end
 
+function cast(self, ctype, value)
+  if value ~= nil then
+    if ctype == 'integer' then
+      value = math.floor(value + 0.5)
+    elseif ctype == 'float' then
+      value = tonumber(value)
+    else
+      value = tostring(value)
+    end
+  end
+  return value
+end
+
 function prepare(self, q)
   local tokens = {}
   q:gsub("([^%?]*)%?", function(c) table.insert(tokens, c) end)

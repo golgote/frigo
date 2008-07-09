@@ -23,8 +23,11 @@ function setValue(self, colname, value)
         self.__previously[colname] = self.__values[colname]
       end
     end
-    self.__values[colname] = self.cast(col.data_type, value)
-    self.__dirty = true
+    local value = self.__db:cast(col.data_type, value)
+    if not self.__values[colname] or value ~= self.__values[colname] then
+      self.__values[colname] = value
+      self.__dirty = true
+    end
     return true
   end
   return false
@@ -43,31 +46,28 @@ function values(self, return_type)
   return self.__values
 end
 
-function set(self, obj)
-  
-end
-
-function add(self, obj)
+function link(self, obj)
   local relation = assert(self.__db:getRelation(self.__table, obj.__table), "relations between ".. self.__table .. " and " .. obj.__table .. " must be defined in module")  
-  if not self.__exists then
-    -- starts by saving the object if not saved
-    self:freeze()
-  end
-  relation:link(self, obj)
   obj:freeze()
+  relation:link(self, obj)
 end
 
 function getOne(self, table2, options, ...)
   local values = {...}
   local options = options or {}
-  local relation = assert(self.__db:getRelation(self.__table, table2), "relations between ".. self.__table .. " and " .. table2 .. " must be defined in module")  
+  local relation = assert(self.__db:getRelation(self.__table, table2), "relations between ".. self.__table .. " and " .. table2 .. " must be defined in module")
   relation:prepare(self, table2, options, values)
   local obj = self.__db:findOne(table2, options, unpack(values))
   return obj
 end
 
-function getAll(self, tablename, options, ...)
-  -- local obj = self.__db:findMany(tablename, options, unpack(values))  
+function getAll(self, table2, options, ...)
+  local values = {...}
+  local options = options or {}
+  local relation = assert(self.__db:getRelation(self.__table, table2), "relations between ".. self.__table .. " and " .. table2 .. " must be defined in module")
+  relation:prepare(self, table2, options, values)
+  local objs = self.__db:findAll(table2, options, unpack(values))
+  return objs
 end
 
 function trigger(self, func)
@@ -172,19 +172,6 @@ end
 
 function info(self)
   return self.__db:tableinfo(self.__table)
-end
-
-function cast(ctype, value)
-  if value ~= nil then
-    if ctype == 'integer' then
-      value = math.floor(value + 0.5)
-    elseif ctype == 'float' then
-      value = tonumber(value)
-    else
-      value = tostring(value)
-    end
-  end
-  return value
 end
 
 function colinfo(self, colname)

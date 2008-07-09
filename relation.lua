@@ -13,19 +13,11 @@ _VERSION = "0.0.1"
 
 function link(self, from, to)
   if not self.pivot then
-    local cols = self.joins[table1]
-    for k,v in pairs(cols) do
-      local col1 = from:colinfo(k)
-      local col2 = to:colinfo(v)
-
-      if from{k} == col1.default and to{v} ~= col2.default then
-        from{k = to{v}}
-      elseif from{k} ~= col1.default and to{v} == col2.default then
-        to{v = from{k}}
-      elseif from{k} ~= to{v} then
-        from{k = to{v}}
-      end
+    local cols = self.joins[from.__table]
+    for a,b in pairs(cols) do
+      from{[a] = to{b}}
     end
+    from:freeze()
   end
 end
 
