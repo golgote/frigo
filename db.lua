@@ -107,9 +107,15 @@ end
 function cast(self, ctype, value)
   if value ~= nil then
     if ctype == 'integer' then
-      value = math.floor(value + 0.5)
+      value = tonumber(value)
+      if value ~= nil then
+        value = math.floor(value + 0.5)
+      end
     elseif ctype == 'float' then
       value = tonumber(value)
+      if value ~= nil then
+        value = tonumber(value)
+      end
     else
       value = tostring(value)
     end
@@ -419,7 +425,9 @@ end
 
 function findAll(self, tablename, options, ...)
   local query = self:buildFindQuery(tablename, options)
-  query = self:limitQuery(query, options.limit, options.offset)
+  if options and options.limit and options.offset then
+    query = self:limitQuery(query, options.limit, options.offset)
+  end
   local objs = {}
   for obj in self:find(query, ...) do
     table.insert(objs, obj)
