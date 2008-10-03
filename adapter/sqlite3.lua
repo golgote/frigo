@@ -5,12 +5,12 @@
 -- @copyright 2008 Bertrand Mansion
 -------------------------------------------------------------------------------
 
-module("frigo.adapter.sqlite", package.seeall)
+module("frigo.adapter.sqlite3", package.seeall)
 
 -- Meta information
 _COPYRIGHT = "Copyright (C) 2008 Bertrand Mansion"
 
-driver = "sqlite"
+driver = "sqlite3"
 
 local mappings = {
   char 		  = 'string',
