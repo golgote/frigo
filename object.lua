@@ -143,7 +143,7 @@ function update(self)
   query = query .. table.concat(cols, ", ") .. " WHERE "
   for _, pk in ipairs(info.pk) do
     where[#where+1] = self.__db:identifier(pk) .. " = ?"
-    if self.__previously[pk] then
+    if self.__previously and self.__previously[pk] then
       values[#values+1] = self.__previously[pk]
     else
       values[#values+1] = self.__values[pk]
