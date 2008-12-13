@@ -59,7 +59,7 @@ function prepare(self, from, table2, options, values)
     values[#values+1] = from:value(pk)
   end
   if options.where then
-    options.where = table.concat(where, " AND ") .. " AND " .. options.where
+    options.where = options.where .. " AND " .. table.concat(where, " AND ")
   else
     options.where = table.concat(where, " AND ")
   end
